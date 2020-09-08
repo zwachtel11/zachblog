@@ -6,7 +6,14 @@ const shouldAnalyseBundle = process.env.ANALYSE_BUNDLE
 
 module.exports = {
   siteMetadata: {
-    siteTitleAlt: `Zach`,
+    siteTitle: `Zachary Wachtel`,
+    siteTitleAlt: `zachary wachtel, blog about tech`,
+    siteHeadline: `Minimal Blog - Gatsby Theme from @lekoarts`,
+    siteUrl: `https://minimal-blog.lekoarts.de`,
+    siteDescription: `Typography driven, feature-rich blogging theme with minimal aesthetics. Includes tags/categories support and extensive features for code blocks such as live preview, line numbers, and line highlighting.`,
+    siteLanguage: `en`,
+    siteImage: `/banner.jpg`,
+    author: `@zawachte`, 
   },
   plugins: [
     {
