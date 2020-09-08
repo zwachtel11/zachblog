@@ -1,0 +1,69 @@
+---
+title: "Kubeconfig"
+date: 2020-09-09
+---
+
+Whether you have bootstrapped your own cluster or rely on a managed kubernetes solution, you will need a way to access the cluster. If you have used a tool like kubeadm, then you may be accessing the cluster with a kubeconfig with client certificates. 
+
+But how does that access work? Let's dig into it.
+
+
+```yaml
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUN5ekNDQWJPZ0F3SUJBZ0lC...
+    server: https://<API_SERVER_VIP>:6443
+  name: cluster
+contexts:
+- context:
+    cluster: cluster
+    user: cluster-admin
+  name: cluster-admin@cluster
+current-context: cluster-admin@cluster
+kind: Config
+preferences: {}
+users:
+- name: cluster-admin
+  user:
+    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURBRENDQWVpZ0F3SUJBZ0lJWUh...
+    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFDQWVpZ0F3SUJBZ0lJWUh...
+```
+
+For accessing the API-server for a kubernetes cluster we use x509 Client Certificates.
+
+This is from the `kubeadm` default usage. Essentially, what is happening is that the kubernetes cluster has a CA Certificate and a CA Key. `kubeadm` generates a client certificate and key with a `CommonName` and `Organization` corresponding to a service account and role. 
+
+```
+	conf := certs.Config{
+		CommonName:   "kubernetes-admin",
+		Organization: []string{"system:masters"},
+		Usages:       []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+```
+
+This will be the identity of the kubeconfig. All calls made with this kubeconfig will have the access of a `kubernetes-admin` in the group `system:masters`. If you needed to create a kubeconfig with lesser privilege, then you would use these fields to assign a lesser role.
+
+The final step is to sign the client certificate and key with the CA certificate and key. By doing this, the api-server can validate that the client certificate is trusted by the same kubernetes cluster CA. 
+
+Once the client certificate and key are generated and signed, they are written to a kubeconfig object along with the certificate of the CA. This can be written to file in a yaml format or json. In the example above you can see a kubeconfig that has been written to a yaml file.
+
+Now that the user has a kubeconfig they can access the kubernetes cluster. 
+
+To access the cluster, the user will provide the kubeconfig and make a `sdk` or `kubectl` call to the cluster.
+
+1. The user will check that the kubernetes cluster is who they say they are. To do this the user will take the CA certificate from the kubeconfig, and make sure the server certificate roots to the same CA.
+2. Then the kubernetes cluster (api-server) will check the client's (user) certificate and key, and make sure they are trusted or root to the CA certificate of the cluster.
+
+Once both steps are validated, there is mTLS between the user and the kubernetes cluster. 
+
+That is how a user with a kubeconfig authenticates to the kubernetes cluster. Then there is still the matter of authorization. To control what a user with a kubeconfig can and can't do, the api-server consults the `CommonName` and the `Organization` on the client certificate presented by the kubeconfig. Since the api-server already knows that the client certificate is signed by the same CA root (and therefore trusted) the api-server then knows that the role assigned by the `CommonName` and `Organization` is valid. Using this role, the api-server controls what functions the user can and can't perform. 
+
+In this example, we assigned the kubeconfig with the highest privilege, so the api-server will allow any action.
+
+Client Certificates are just one way of accessing a kubernetes cluster. There are many other methods for gaining access.
+
+
+### Sources
+https://kubernetes.io/docs/reference/access-authn-authz/authentication/#x509-client-certs
+https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles
